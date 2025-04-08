@@ -1,0 +1,12 @@
+[package]
+name = "arcade-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+circular-queue = "0.2.7"
+cpal = "0.15.3"
+eframe = "0.31.0"
+rtrb = "0.3.2"
+serialport = "4.7.0"
+windows-capture = "1.4.2"
