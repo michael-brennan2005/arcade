@@ -2,8 +2,7 @@ use std::{io::Write, thread};
 use std::time::Instant;
 
 use audio::{VolumeData, VolumeMonitor};
-use circular_queue::CircularQueue;
-use cpal::{traits::{DeviceTrait, HostTrait, StreamTrait}, StreamConfig};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use eframe::egui::{self, Pos2, Vec2};
 use led_calculator::LEDCalculator;
 use serialport::{SerialPort, SerialPortInfo, SerialPortType};
@@ -53,7 +52,10 @@ fn main() {
             &device_config.into(), 
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
                 let data = volume_monitor.process_frame(data);
-                audio_producer.push(data);
+                match audio_producer.push(data) {
+                    Ok(_) => {},
+                    Err(_) => {},
+                }
             },
             move |err| {
                 panic!("Audio input stream failure: {}", err);

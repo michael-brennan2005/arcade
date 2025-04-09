@@ -29,7 +29,7 @@ impl LEDCalculator {
         Self {
             screen_size: (width, height),
             pixels_per_cell,
-            grid: vec![RGB { r: 0, g: 0, b: 0 }; ((width * height) / (pixels_per_cell * pixels_per_cell))],
+            grid: vec![RGB { r: 0, g: 0, b: 0 }; (width * height) / (pixels_per_cell * pixels_per_cell)],
         }
     }
 

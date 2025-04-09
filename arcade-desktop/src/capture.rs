@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use windows_capture::{
     capture::{Context, GraphicsCaptureApiHandler},
     frame::Frame,
@@ -60,7 +58,10 @@ impl GraphicsCaptureApiHandler for Capture {
         // let end = Instant::now();
         // println!("{:?}", end - start);
         
-        self.producer.push(calculator);
+        match self.producer.push(calculator) {
+            Ok(_) => {},
+            Err(_) => {},
+        }
         
         Ok(())
     }

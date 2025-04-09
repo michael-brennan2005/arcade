@@ -42,11 +42,11 @@ impl VolumeMonitor {
         }
     }
     
-    /// Create a new VolumeMonitor with sensible defaults
+    /// Create a new VolumeMonitor with sensible defaults    
+    #[allow(dead_code)]
     pub fn with_defaults() -> Self {
         Self::new(0.8, 0.05, 50, 0.1, 1.5)
     }
-    
     /// Process a frame of audio samples and update all internal state
     pub fn process_frame(&mut self, samples: &[f32]) -> VolumeData {
         // Calculate RMS for current frame
