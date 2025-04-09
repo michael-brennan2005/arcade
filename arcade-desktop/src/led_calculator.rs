@@ -50,4 +50,42 @@ impl LEDCalculator {
             cell.b /= x;
         }
     }
+
+    // TODO: vet and read
+    pub fn write(&self, count: usize, buf: &mut Vec<u8>) {
+        // Get perimeter
+        let grid_width = self.screen_size.0 / self.pixels_per_cell;
+        let grid_height = self.screen_size.1 / self.pixels_per_cell;
+        let perimeter = 2 * (grid_width + grid_height);
+
+        for i in 0..count {
+            let idx = perimeter / count;
+            
+            // Calculate position along perimeter based on index
+            let pos = i * idx;
+            
+            // Get coordinates based on position along perimeter
+            let (x, y) = if pos < grid_width {
+                // Top edge
+                (pos, 0)
+            } else if pos < grid_width + grid_height {
+                // Right edge
+                (grid_width - 1, pos - grid_width)
+            } else if pos < 2 * grid_width + grid_height {
+                // Bottom edge
+                (2 * grid_width + grid_height - pos - 1, grid_height - 1)
+            } else {
+                // Left edge
+                (0, 2 * (grid_width + grid_height) - pos - 1)
+            };
+
+            // Get grid cell at calculated position
+            let cell = &self.grid[x + y * grid_width];
+            
+            // Write RGB values to buffer
+            buf.push(cell.r as u8);
+            buf.push(cell.g as u8); 
+            buf.push(cell.b as u8);
+        }
+    }
 }

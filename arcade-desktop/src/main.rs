@@ -1,4 +1,4 @@
-use std::thread;
+use std::{io::Write, thread};
 use std::time::Instant;
 
 use audio::{VolumeData, VolumeMonitor};
@@ -225,14 +225,24 @@ impl eframe::App for ClientApp {
         if let Some(port) = &mut self.port {
             // Would make this an AND with the parent if but that's 'unstable' with let expressions
             // rn
-            if self.port_connection_status != PortConnectionStatus::WritingFailed {           
-                let mut buf: Vec<u8> = vec![0; 1 + self.led_count * 3];
-                buf[0] = 0x77;
-                for i in 0..self.led_count {
-                    buf[1 + i * 3] = current_capture.grid[i].r as u8;
-                    buf[1 + i * 3 + 1] = current_capture.grid[i].g as u8;
-                    buf[1 + i * 3 + 2] = current_capture.grid[i].b as u8;
-                }
+            if self.port_connection_status != PortConnectionStatus::WritingFailed {         
+                // 6 bytes for header, byte for haptic motor trigger, byte for rgb triplet count,
+                // 3 bytes for each rgb triplet  
+                let mut buf: Vec<u8> = Vec::with_capacity(
+                    8 + self.led_count * 3 
+                );
+
+                // Header
+                buf.write("ARCADE".as_bytes()).unwrap();
+
+                // Should haptic motor trigger
+                buf.write(&[current_volume.should_trigger as u8]).unwrap();
+                
+                // How many RGB triplets are being written
+                buf.write(&[self.led_count as u8]).unwrap();
+
+                // RGB triplets
+                current_capture.write(self.led_count, &mut buf);
 
                 // TODO: we probably wont be sending buffers large enough that they wont be fully
                 // written on one call. if there ever seems to be reliability/data issues though,
@@ -242,9 +252,7 @@ impl eframe::App for ClientApp {
                     Err(_) => {
                         self.port_connection_status = PortConnectionStatus::WritingFailed
                     },
-                }
-
-                
+                }                
             } 
         }
         
