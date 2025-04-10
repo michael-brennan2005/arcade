@@ -1,6 +1,7 @@
-#include <driver/rmt_types.h>
 #ifndef WS2815_STRIP_H
 #define WS2815_STRIP_H
+
+#include <driver/rmt_types.h>
 
 /**
  * Mode of operation:

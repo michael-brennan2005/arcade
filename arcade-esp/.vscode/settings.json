@@ -6,6 +6,9 @@
         "memory_resource": "c",
         "memory": "c",
         "esp_log.h": "c",
-        "rmt_types.h": "c"
+        "rmt_types.h": "c",
+        "debounced_input.h": "c",
+        "freertos.h": "c",
+        "ws2815_strip.h": "c"
     }
 }
