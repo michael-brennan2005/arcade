@@ -22,6 +22,110 @@ static const char* TAG = "Main";
 
 #define HAPTIC_MOTOR_GPIO 11
 
+#define LED_STRIP_1_GPIO 32
+#define LED_STRIP_2_GPIO 14
+
+#define LED_STRIP_1_COUNT 15
+#define LED_STRIP_2_COUNT 15
+
+// Function declarations for LED modes
+void sync_mode(ws2815_strip_controller_t* strip, uint8_t* rgb_data, uint8_t rgb_count);
+void rainbow_mode(ws2815_strip_controller_t* strip, uint16_t offset);
+void solid_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t palette_idx);
+void oscillating_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t palette_idx, uint16_t offset);
+void strobe_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t palette_idx, uint16_t offset);
+
+// Function definitions
+void sync_mode(ws2815_strip_controller_t* strip, uint8_t* rgb_data, uint8_t rgb_count) {
+    for (int i = 0; (i < ws2815_strip_controller_len(strip) && i < rgb_count); i += 1) {
+        ws2815_strip_controller_set(
+            strip, 
+            i, 
+            rgb_data[i * 3], 
+            rgb_data[i * 3 + 1], 
+            rgb_data[i * 3 + 2]);
+    }
+}
+
+void rainbow_mode(ws2815_strip_controller_t* strip, uint16_t offset) {
+    for (int i = 0; i < ws2815_strip_controller_len(strip); i += 1) {
+        rgb_t rgb = hsv2rgb(((5 * i) + offset) % 360, 100.0, 100.0);
+
+        ws2815_strip_controller_set(
+            strip, 
+            i, 
+            rgb.r, 
+            rgb.g, 
+            rgb.b);
+    }
+}
+
+void solid_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t palette_idx) {
+    for (int i = 0; i < ws2815_strip_controller_len(strip); i += 1) {
+        rgb_t rgb = palette[palette_idx];
+
+        ws2815_strip_controller_set(
+            strip, 
+            i, 
+            rgb.r, 
+            rgb.g, 
+            rgb.b);
+    }
+}
+
+void oscillating_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t palette_idx, uint16_t offset) {
+    uint16_t offset2 = offset / 5;
+    for (int i = 0; i < ws2815_strip_controller_len(strip); i += 1) {
+        rgb_t rgb;
+        rgb_t rgb2;
+
+        if (offset2 % 2 == 0) {
+            rgb = palette[palette_idx];
+        } else {
+            rgb2 = (rgb_t){.r = 0xff, .g = 0xff, .b = 0xff};
+        }
+
+        if (i % 2 == 0) {    
+            ws2815_strip_controller_set(
+                strip, 
+                i, 
+                rgb.r, 
+                rgb.g, 
+                rgb.b);
+        } else {
+            ws2815_strip_controller_set(
+                strip, 
+                i, 
+                rgb2.r, 
+                rgb2.g, 
+                rgb2.b);
+        }
+    }
+}
+
+void strobe_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t palette_idx, uint16_t offset) {
+    uint16_t offset2 = offset / 3;
+    for (int i = 0; i < ws2815_strip_controller_len(strip); i += 1) {
+        rgb_t rgb = palette[palette_idx];
+
+        if (offset2 % 2 == 0) {    
+            ws2815_strip_controller_set(
+                strip, 
+                i, 
+                0x00, 
+                0x00, 
+                0x00);
+        } else {
+            ws2815_strip_controller_set(
+                strip, 
+                i, 
+                rgb.r, 
+                rgb.g, 
+                rgb.b);
+        }
+    }
+}
+
 void init_uart(int uart_num) {
    uart_config_t uart_config = {
         .baud_rate = 115200,
@@ -47,9 +151,19 @@ void app_main(void) {
     uint8_t haptic_motor_trigger = 0;
 
     // Create LED strips
-    gpio_num_t led_io_pin = GPIO_NUM_21;
-    ESP_LOGI(TAG, "Create LED Strip at GPIO PIN %d", led_io_pin);
-    ws2815_strip_controller_t* led_strip = ws2815_strip_controller_new(led_io_pin, 14);
+    ESP_LOGI(
+        TAG, 
+        "Create LED Strip at GPIO pin %d and GPIO pin %d", 
+        LED_STRIP_1_GPIO, 
+        LED_STRIP_2_GPIO);
+
+    ws2815_strip_controller_t* strip1 = ws2815_strip_controller_new(
+        LED_STRIP_1_GPIO, 
+        LED_STRIP_1_COUNT);
+    
+    ws2815_strip_controller_t* strip2 = ws2815_strip_controller_new(
+        LED_STRIP_2_GPIO, 
+        LED_STRIP_2_COUNT);
 
     // Control state
     uint8_t mode = 0; // What LED pattern (solid, oscillating, screen sync, etc...)
@@ -68,7 +182,7 @@ void app_main(void) {
         {.r=0x1a, .g=0xb9, .b=0x0c}, // green
         {.r=0x00, .g=0x64, .b=0x08}, // dark green
     };
-    uint8_t palette_idx = 0; 
+    uint8_t palette_idx = 8; 
     uint16_t offset = 0; // for rainbow and oscillating effects
 
     debounced_input_t* left_button = debounced_input_new(GPIO_NUM_10, pdMS_TO_TICKS(200));
@@ -95,7 +209,7 @@ void app_main(void) {
         
             int header_match = 1;
             for (int i = 0; i < 6; i += 1) {
-                if (header[i] == expected[i]) {
+                if (header[i] != expected[i]) {
                     header_match = 0;
                     break;
                 }
@@ -105,12 +219,12 @@ void app_main(void) {
                 // Assume these all succeed (we have header match)
                 uart_read_bytes(uart_num, &haptic_motor_trigger, 1, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
                 uart_read_bytes(uart_num, &rgb_count, 1, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
-                uart_read_bytes(uart_num, &rgb_data, rgb_count * 3, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
+                uart_read_bytes(uart_num, rgb_data, rgb_count * 3, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
             }
         }
 
         // Handle button input and (TODO: LCD logic)
-        if (debounced_input_check(left_button, ticks)) {
+        /**if (debounced_input_check(left_button, ticks)) {
             mode = ((mode - 1) + MODES_NUM) % MODES_NUM;
             ESP_LOGI(TAG, "Left button pressed");
         }
@@ -123,7 +237,7 @@ void app_main(void) {
         // mode > 1: only have mid button work on the modes where it changes things
         if (debounced_input_check(mid_button, ticks) && mode > 1) {
             ESP_LOGI(TAG, "Oh yeah!!!!");
-        }
+        }**/
         
 
         /**
@@ -135,97 +249,31 @@ void app_main(void) {
          * Mode 4: Strobe
          */
 
-        if (MODES_NUM == 0) {
-            for (int i = 0; (i < ws2815_strip_controller_len(led_strip) && i < rgb_count); i += 1) {
-                ws2815_strip_controller_set(
-                    led_strip, 
-                    i, 
-                    rgb_data[i * 3], 
-                    rgb_data[i * 3 + 1], 
-                    rgb_data[i * 3 + 2]);
-            }
-        } else if (MODES_NUM == 1) {
-            for (int i = 0; i < ws2815_strip_controller_len(led_strip); i += 1) {
-                rgb_t rgb = hsv2rgb((i + offset) % 360, 100.0, 100.0);
-
-                ws2815_strip_controller_set(
-                    led_strip, 
-                    i, 
-                    rgb.r, 
-                    rgb.g, 
-                    rgb.b);
-            }
-
-        } else if (MODES_NUM == 2) {
-            for (int i = 0; i < ws2815_strip_controller_len(led_strip); i += 1) {
-                rgb_t rgb = palette[palette_idx];
-
-                ws2815_strip_controller_set(
-                    led_strip, 
-                    i, 
-                    rgb.r, 
-                    rgb.g, 
-                    rgb.b);
-            }
-        } else if (MODES_NUM == 3) {
-            uint16_t offset2 = offset / 5;
-            for (int i = 0; i < ws2815_strip_controller_len(led_strip); i += 1) {
-                rgb_t rgb;
-                rgb_t rgb2;
-
-                if (offset2 % 2 == 0) {
-                    rgb = palette[palette_idx];
-                } else {
-                    rgb2 = (rgb_t){.r = 0xff, .g = 0xff, .b = 0xff};
-                }
-
-                if (i % 2 == 0) {    
-                    ws2815_strip_controller_set(
-                        led_strip, 
-                        i, 
-                        rgb.r, 
-                        rgb.g, 
-                        rgb.b);
-                } else {
-                    ws2815_strip_controller_set(
-                        led_strip, 
-                        i, 
-                        rgb2.r, 
-                        rgb2.g, 
-                        rgb2.b);
-                }
-            }
-        } else if (MODES_NUM == 4) {
-            uint16_t offset2 = offset / 3;
-            for (int i = 0; i < ws2815_strip_controller_len(led_strip); i += 1) {
-                rgb_t rgb = palette[palette_idx];
-
-                if (offset2 % 2 == 0) {    
-                    ws2815_strip_controller_set(
-                        led_strip, 
-                        i, 
-                        0x00, 
-                        0x00, 
-                        0x00);
-                } else {
-                    ws2815_strip_controller_set(
-                        led_strip, 
-                        i, 
-                        rgb.r, 
-                        rgb.g, 
-                        rgb.b);
-                }
-            }
+        if (mode == 0) {
+            sync_mode(strip1, rgb_data, rgb_count);
+            sync_mode(strip2, rgb_data, rgb_count);
+        } else if (mode == 1) {
+            rainbow_mode(strip1, offset);
+            rainbow_mode(strip2, offset);
+        } else if (mode == 2) {
+            solid_mode(strip1, palette, palette_idx);
+            solid_mode(strip2, palette, palette_idx);
+        } else if (mode == 3) {
+            oscillating_mode(strip1, palette, palette_idx, offset);
+            oscillating_mode(strip2, palette, palette_idx, offset);
+        } else if (mode == 4) {
+            strobe_mode(strip1, palette, palette_idx, offset);
+            strobe_mode(strip2, palette, palette_idx, offset);
         }
 
-        ws2815_strip_controller_send(led_strip);
+        ws2815_strip_controller_send(strip1);
+        ws2815_strip_controller_send(strip2);
         
         gpio_set_level(HAPTIC_MOTOR_GPIO, (uint32_t)haptic_motor_trigger);
 
         // You are not paranoid enough. Doing the modulo for overflow
         offset = (offset + 1) % 65536;
 
-        TickType_t ticks = pdMS_TO_TICKS(FRAME_DURATION_MS);
         vTaskDelay(ticks);
     }
 }

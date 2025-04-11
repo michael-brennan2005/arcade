@@ -21,7 +21,7 @@ use rtrb::{Consumer, RingBuffer};
 
 fn main() {
     // For capture thread <-> app thread
-    let (led_producer, led_consumer) = RingBuffer::<led_calculator::LEDCalculator>::new(256);
+    let (led_producer, led_consumer) = RingBuffer::<led_calculator::LEDCalculator>::new(64);
     let (mut audio_producer, audio_consumer) = RingBuffer::<VolumeData>::new(1);
 
     // Gets the foreground window, refer to the docs for other capture items

@@ -6,6 +6,8 @@ debounced_input_t* debounced_input_new(gpio_num_t gpio, TickType_t debounce) {
     input->gpio = gpio;
     input->debounce_const = debounce;
     input->debounce_current = 0;
+
+    return input;
 }
 
 void debounced_input_free(debounced_input_t* input) {

@@ -9,7 +9,6 @@
  * 2. Use len and buf getters to set what the colors you want for LEDs.
  * 3. Call ws2815_strip_controller_send to do the RMT logic and send signals.
  * 
- * TODO: how to handle reset times.
  */
 typedef struct {
     uint8_t* buf;

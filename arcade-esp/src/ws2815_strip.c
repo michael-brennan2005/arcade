@@ -89,7 +89,7 @@ ws2815_strip_controller_t* ws2815_strip_controller_new(gpio_num_t gpio_num, uint
     rmt_tx_channel_config_t channel_config = {
         .clk_src = RMT_CLK_SRC_DEFAULT,
         .gpio_num = gpio_num,
-        .mem_block_symbols = strip_length * 3 * 8, // one symbol for every bit (TODO: is this right at all)  
+        .mem_block_symbols = 64, // one symbol for every bit (TODO: is this right at all)  
         .resolution_hz = RMT_LED_STRIP_RESOLUTION_HZ,
         .trans_queue_depth = 4,
     };
