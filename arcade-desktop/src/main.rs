@@ -19,6 +19,8 @@ mod led_calculator;
 use capture::Capture;
 use rtrb::{Consumer, RingBuffer};
 
+const LED_COUNT: usize = 74;
+
 fn main() {
     // For capture thread <-> app thread
     let (led_producer, led_consumer) = RingBuffer::<led_calculator::LEDCalculator>::new(64);
@@ -103,8 +105,6 @@ struct ClientApp {
     port: Option<Box<dyn SerialPort>>,
     selected_port_info: Option<SerialPortInfo>, // For the UI - check port for what's the actual port
     port_connection_status: PortConnectionStatus,
-
-    led_count: usize 
 }
 
 impl ClientApp {
@@ -124,7 +124,6 @@ impl ClientApp {
             port: None,
             port_connection_status: PortConnectionStatus::NoPortSelected,
             selected_port_info: None,
-            led_count: 25
         }
     }
 }
@@ -207,16 +206,14 @@ impl eframe::App for ClientApp {
                 ui.label(self.port_connection_status.to_string());
             });
 
-            ui.add(egui::Slider::new(&mut self.led_count, 1..=100).text("LED count"));
-
             for (i, cell) in current_capture.grid.iter().enumerate() {
-                let side_length = 25.0;
+                let side_length = 35.0;
                 let x = (i % (1920 / 120)) as f32;
                 let y = (i / (1920 / 120)) as f32;
 
                 ui.painter().rect_filled(
                     egui::Rect::from_min_size(
-                        Pos2::new(x * side_length, y * side_length + 200.0),
+                        Pos2::new(x * side_length, y * side_length + 60.0),
                         Vec2::new(side_length, side_length)),
                         0,
                         *cell
@@ -231,20 +228,14 @@ impl eframe::App for ClientApp {
                 // 6 bytes for header, byte for haptic motor trigger, byte for rgb triplet count,
                 // 3 bytes for each rgb triplet  
                 let mut buf: Vec<u8> = Vec::with_capacity(
-                    8 + self.led_count * 3 
+                    1 + LED_COUNT * 3 
                 );
 
                 // Header
-                buf.write("ARCADE".as_bytes()).unwrap();
-
-                // Should haptic motor trigger
-                buf.write(&[current_volume.should_trigger as u8]).unwrap();
+                buf.write(&[0x77, current_volume.should_trigger as u8]).unwrap();
                 
-                // How many RGB triplets are being written
-                buf.write(&[self.led_count as u8]).unwrap();
-
                 // RGB triplets
-                current_capture.write(self.led_count, &mut buf);
+                current_capture.write(LED_COUNT, &mut buf);
 
                 // TODO: we probably wont be sending buffers large enough that they wont be fully
                 // written on one call. if there ever seems to be reliability/data issues though,

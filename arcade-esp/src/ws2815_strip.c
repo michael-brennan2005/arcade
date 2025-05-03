@@ -38,9 +38,6 @@ static const rmt_symbol_word_t ws2812_reset = {
 // - Our data is RGB triplets (3x uint8_t)
 // - RMT takes symbols (which have a duration and signal (HI/LO)).
 // - This callback is what handles that conversion.
-// TODO: Because this converts data into a byte pointer I think we have nothing XTRA do to convert it?
-// Could be VERY VERY wrong about this tho
-// UPDATE TO TODO: Yeah this is chill
 static size_t encoder_callback(const void *data, size_t data_size,
                                size_t symbols_written, size_t symbols_free,
                                rmt_symbol_word_t *symbols, bool *done, void *arg) {

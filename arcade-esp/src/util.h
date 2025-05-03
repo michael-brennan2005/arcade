@@ -41,4 +41,48 @@ rgb_t hsv2rgb(float H, float S, float V) {
 	return color;
 }
 
+typedef struct hsv_t {
+    float h;
+    float s; 
+    float v;  
+} hsv_t;
+
+hsv_t rgb2hsv(int R, int G, int B) {
+    // Convert RGB values to 0-1 range
+    float r = R / 255.0;
+    float g = G / 255.0; 
+    float b = B / 255.0;
+
+    // Find min and max RGB values
+    float cmax = fmax(r, fmax(g, b));
+    float cmin = fmin(r, fmin(g, b));
+    float delta = cmax - cmin;
+
+    hsv_t hsv;
+    
+    // Calculate hue (in degrees)
+    if (delta == 0) {
+        hsv.h = 0;
+    } else if (cmax == r) {
+        hsv.h = 60 * fmod(((g - b) / delta), 6);
+    } else if (cmax == g) {
+        hsv.h = 60 * (((b - r) / delta) + 2);
+    } else {
+        hsv.h = 60 * (((r - g) / delta) + 4);
+    }
+
+    // Ensure hue is positive
+    if (hsv.h < 0) {
+        hsv.h += 360;
+    }
+
+    // Calculate saturation (in percent)
+    hsv.s = (cmax == 0) ? 0 : (delta / cmax) * 100;
+
+    // Calculate value (in percent) 
+    hsv.v = cmax * 100;
+
+    return hsv;
+}
+
 #endif

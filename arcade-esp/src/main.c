@@ -16,17 +16,24 @@ static const char* TAG = "Main";
  
 #define FRAME_DURATION_MS 10
 #define UART_READ_TIMEOUT_MS 10
+#define MODE_CYCLE_MS 500  // 3 seconds per mode
 
-#define MODES_NUM 4
+#define MODES_NUM 20
 #define PALETTE_NUM 10
 
-#define HAPTIC_MOTOR_GPIO 11
+#define HAPTIC_MOTOR_GPIO 25
 
-#define LED_STRIP_1_GPIO 32
-#define LED_STRIP_2_GPIO 14
+#define LED_STRIP_1_GPIO 25
+#define LED_STRIP_2_GPIO 26
 
-#define LED_STRIP_1_COUNT 15
-#define LED_STRIP_2_COUNT 15
+#define LEFT_BUTTON_GPIO 16
+#define RIGHT_BUTTON_GPIO 17
+#define MID_BUTTON_GPIO 18
+
+#define LED_STRIP_1_COUNT 65
+#define LED_STRIP_2_COUNT 74
+
+#define UART_RGB_COUNT 74
 
 // Function declarations for LED modes
 void sync_mode(ws2815_strip_controller_t* strip, uint8_t* rgb_data, uint8_t rgb_count);
@@ -38,18 +45,27 @@ void strobe_mode(ws2815_strip_controller_t* strip, const rgb_t* palette, uint8_t
 // Function definitions
 void sync_mode(ws2815_strip_controller_t* strip, uint8_t* rgb_data, uint8_t rgb_count) {
     for (int i = 0; (i < ws2815_strip_controller_len(strip) && i < rgb_count); i += 1) {
+        hsv_t hsv = rgb2hsv(rgb_data[i * 3], rgb_data[i * 3 + 1], rgb_data[i * 3 + 2]);
+        rgb_t rgb = hsv2rgb(hsv.h, 100.0, 100.0);
+
+        // ws2815_strip_controller_set(
+        //     strip, 
+        //     i, 
+        //     rgb_data[i * 3], 
+        //     rgb_data[i * 3 + 1], 
+        //     rgb_data[i * 3 + 2]);
         ws2815_strip_controller_set(
             strip, 
             i, 
-            rgb_data[i * 3], 
-            rgb_data[i * 3 + 1], 
-            rgb_data[i * 3 + 2]);
+            rgb.r, 
+            rgb.g, 
+            rgb.b);
     }
 }
 
 void rainbow_mode(ws2815_strip_controller_t* strip, uint16_t offset) {
     for (int i = 0; i < ws2815_strip_controller_len(strip); i += 1) {
-        rgb_t rgb = hsv2rgb(((5 * i) + offset) % 360, 100.0, 100.0);
+        rgb_t rgb = hsv2rgb(((5 * i) + (5 * offset)) % 360, 100.0, 100.0);
 
         ws2815_strip_controller_set(
             strip, 
@@ -165,9 +181,6 @@ void app_main(void) {
         LED_STRIP_2_GPIO, 
         LED_STRIP_2_COUNT);
 
-    // Control state
-    uint8_t mode = 0; // What LED pattern (solid, oscillating, screen sync, etc...)
-
     // What the middle button does - picks a 'primary' color from this list that different modes
     // can use
     const rgb_t palette[PALETTE_NUM] = {
@@ -185,85 +198,29 @@ void app_main(void) {
     uint8_t palette_idx = 8; 
     uint16_t offset = 0; // for rainbow and oscillating effects
 
-    debounced_input_t* left_button = debounced_input_new(GPIO_NUM_10, pdMS_TO_TICKS(200));
-    debounced_input_t* right_button = debounced_input_new(GPIO_NUM_11, pdMS_TO_TICKS(200));
-    debounced_input_t* mid_button = debounced_input_new(GPIO_NUM_12, pdMS_TO_TICKS(200));
+    debounced_input_t* left_button = debounced_input_new(LEFT_BUTTON_GPIO, pdMS_TO_TICKS(200));
+    debounced_input_t* right_button = debounced_input_new(RIGHT_BUTTON_GPIO, pdMS_TO_TICKS(200));
+    debounced_input_t* mid_button = debounced_input_new(MID_BUTTON_GPIO, pdMS_TO_TICKS(200));
 
-
-    uint8_t header[6] = {0};
-    // "ARCADE" in ascii
-    const uint8_t expected[6] = {0x41, 0x52, 0x43, 0x41, 0x44, 0x45};     
+    uint8_t mode = 0;
+    uint32_t mode_timer = 0;
 
     while (1) {
         TickType_t ticks = pdMS_TO_TICKS(FRAME_DURATION_MS);
 
-        // This shifty thing is good for error checking but may introduce to much latency for haptic
-        // motor + LED sync idk (try lowering frame_duration_ms super low first)
-        for (int i = 0; i < 5; i += 1) {
-            header[i] = header[i + 1];
-        }
-
-        uint8_t new_byte;
-        if (uart_read_bytes(uart_num, &new_byte, 1, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS)) == 1) {
-            header[5] = new_byte;
-        
-            int header_match = 1;
-            for (int i = 0; i < 6; i += 1) {
-                if (header[i] != expected[i]) {
-                    header_match = 0;
-                    break;
-                }
-            }
-
-            if (header_match) {
-                // Assume these all succeed (we have header match)
-                uart_read_bytes(uart_num, &haptic_motor_trigger, 1, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
-                uart_read_bytes(uart_num, &rgb_count, 1, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
-                uart_read_bytes(uart_num, rgb_data, rgb_count * 3, pdMS_TO_TICKS(UART_READ_TIMEOUT_MS));
-            }
-        }
-
-        // Handle button input and (TODO: LCD logic)
-        /**if (debounced_input_check(left_button, ticks)) {
-            mode = ((mode - 1) + MODES_NUM) % MODES_NUM;
-            ESP_LOGI(TAG, "Left button pressed");
-        }
-
-        if (debounced_input_check(right_button, ticks)) {
+        // Update mode timer and cycle modes every 3 seconds
+        mode_timer += FRAME_DURATION_MS;
+        if (mode_timer >= MODE_CYCLE_MS) {
             mode = (mode + 1) % MODES_NUM;
-            ESP_LOGI(TAG, "Right button pressed");
+            mode_timer = 0;
         }
 
-        // mode > 1: only have mid button work on the modes where it changes things
-        if (debounced_input_check(mid_button, ticks) && mode > 1) {
-            ESP_LOGI(TAG, "Oh yeah!!!!");
-        }**/
-        
-
-        /**
-         * LED Modes:
-         * Mode 0: Sync 
-         * Mode 1: Rainbow
-         * Mode 2: Solid
-         * Mode 3: Oscillating
-         * Mode 4: Strobe
-         */
-
-        if (mode == 0) {
-            sync_mode(strip1, rgb_data, rgb_count);
-            sync_mode(strip2, rgb_data, rgb_count);
-        } else if (mode == 1) {
+        if (mode < 10) {
+            solid_mode(strip1, palette, mode);
+            solid_mode(strip2, palette, mode);
+        } else {
             rainbow_mode(strip1, offset);
-            rainbow_mode(strip2, offset);
-        } else if (mode == 2) {
-            solid_mode(strip1, palette, palette_idx);
-            solid_mode(strip2, palette, palette_idx);
-        } else if (mode == 3) {
-            oscillating_mode(strip1, palette, palette_idx, offset);
-            oscillating_mode(strip2, palette, palette_idx, offset);
-        } else if (mode == 4) {
-            strobe_mode(strip1, palette, palette_idx, offset);
-            strobe_mode(strip2, palette, palette_idx, offset);
+            rainbow_mode(strip2, offset);    
         }
 
         ws2815_strip_controller_send(strip1);
