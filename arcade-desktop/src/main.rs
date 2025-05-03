@@ -177,9 +177,6 @@ impl eframe::App for ClientApp {
 
                         ui.selectable_value(
                             &mut self.selected_port_info,
-                            // why tf are they using strings ?!?!?! IM FINNA CRASH OUT!!!!
-                            // i think this is actaully best practice but mannnn
-                            // i dont like clones :( 
                             Some(option.clone()), 
                             option_text);
                     }

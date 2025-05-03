@@ -12,7 +12,7 @@
  */
 typedef struct {
     uint8_t* buf;
-    // STRIP LENGTH! sizeof(buf) = sizeof(uint8)*len*3; This is lowkey a bad name.
+    // STRIP LENGTH! sizeof(buf) = sizeof(uint8)*len*3; This is honestly a bad name.
     uint32_t len; 
     rmt_channel_handle_t channel;
     rmt_encoder_handle_t encoder;
